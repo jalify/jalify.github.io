@@ -1,0 +1,464 @@
+const weekday = document.getElementById("weekday");
+const date = document.getElementById("date");
+const difference = document.getElementById("difference");
+
+const DAY = 24 * 60 * 60 * 1000;
+
+const today = new Date();
+today.setHours(0, 0, 0, 0);
+
+let selectedDate = new Date(today);
+let resetTimer;
+
+let touchStartX = 0;
+let touchStartY = 0;
+let lastTapTime = 0;
+
+function addYears(date, years) {
+    const result = new Date(date);
+    result.setFullYear(result.getFullYear() + years);
+    return result;
+}
+
+function addMonths(date, months) {
+    const result = new Date(date);
+    result.setMonth(result.getMonth() + months);
+    return result;
+}
+
+function getDifference(from, to) {
+    const future = to > from;
+
+    if (!future) {
+        [from, to] = [to, from];
+    }
+
+    let years = 0;
+    let months = 0;
+    let cursor = new Date(from);
+
+    while (true) {
+        const next = addYears(cursor, 1);
+
+        if (next <= to) {
+            cursor = next;
+            years++;
+        } else {
+            break;
+        }
+    }
+
+    while (true) {
+        const next = addMonths(cursor, 1);
+
+        if (next <= to) {
+            cursor = next;
+            months++;
+        } else {
+            break;
+        }
+    }
+
+    const remainingDays = Math.round(
+        (to - cursor) / DAY
+    );
+
+    const weeks = Math.floor(
+        remainingDays / 7
+    );
+
+    const days = remainingDays % 7;
+
+    return {
+        future,
+        years,
+        months,
+        weeks,
+        days
+    };
+}
+
+function formatDifference() {
+    if (
+        selectedDate.getTime() ===
+        today.getTime()
+    ) {
+        return "Today";
+    }
+
+    const diff = getDifference(
+        today,
+        selectedDate
+    );
+
+    const parts = [];
+
+    if (diff.years) {
+        parts.push(
+            `${diff.years} year${diff.years === 1 ? "" : "s"
+            }`
+        );
+    }
+
+    if (diff.months) {
+        parts.push(
+            `${diff.months} month${diff.months === 1 ? "" : "s"
+            }`
+        );
+    }
+
+    if (diff.weeks) {
+        parts.push(
+            `${diff.weeks} week${diff.weeks === 1 ? "" : "s"
+            }`
+        );
+    }
+
+    if (diff.days) {
+        parts.push(
+            `${diff.days} day${diff.days === 1 ? "" : "s"
+            }`
+        );
+    }
+
+    let result;
+
+    if (parts.length === 1) {
+        result = parts[0];
+    } else if (parts.length === 2) {
+        result =
+            `${parts[0]} and ${parts[1]}`;
+    } else {
+        result =
+            parts.slice(0, -1).join(", ") +
+            `, and ${parts[parts.length - 1]}`;
+    }
+
+    return diff.future
+        ? `${result} from now`
+        : `${result} ago`;
+}
+
+function updateFontSize() {
+    let size = Math.min(
+        window.innerWidth,
+        window.innerHeight
+    );
+
+    date.style.fontSize = `${size}px`;
+
+    while (
+        (
+            weekday.scrollWidth >
+            window.innerWidth ||
+            difference.scrollWidth >
+            window.innerWidth ||
+            date.scrollWidth >
+            window.innerWidth ||
+            document.body.scrollHeight >
+            window.innerHeight
+        ) &&
+        size > 1
+    ) {
+        size -= 1;
+        date.style.fontSize = `${size}px`;
+    }
+}
+
+function updateDate() {
+    const parts =
+        new Intl.DateTimeFormat(
+            "en-US-u-ca-persian",
+            {
+                day: "numeric",
+                month: "long",
+                year: "numeric"
+            }
+        ).formatToParts(selectedDate);
+
+    const day = parts.find(
+        part => part.type === "day"
+    ).value;
+
+    const month = parts.find(
+        part => part.type === "month"
+    ).value;
+
+    const year = parts.find(
+        part => part.type === "year"
+    ).value;
+
+    date.textContent =
+        `${month} ${day}, ${year}`;
+
+    weekday.textContent =
+        new Intl.DateTimeFormat(
+            "en-US",
+            {
+                weekday: "long"
+            }
+        ).format(selectedDate);
+
+    difference.textContent =
+        formatDifference();
+
+    const days = Math.round(
+        (selectedDate - today) / DAY
+    );
+
+    [weekday, date, difference]
+        .forEach(element => {
+            element.classList.remove(
+                "past",
+                "future"
+            );
+
+            if (days < 0) {
+                element.classList.add("past");
+            } else if (days > 0) {
+                element.classList.add("future");
+            }
+        });
+
+    updateFontSize();
+}
+
+function resetToToday() {
+    selectedDate = new Date(today);
+
+    updateDate();
+    resetInactivityTimer();
+}
+
+function resetInactivityTimer() {
+    clearTimeout(resetTimer);
+
+    resetTimer = setTimeout(() => {
+        resetToToday();
+    }, 5000);
+}
+
+document.addEventListener(
+    "keydown",
+    event => {
+        resetInactivityTimer();
+
+        switch (event.key) {
+            // Previous day
+            case "ArrowLeft":
+            case "a":
+            case "A":
+                selectedDate.setDate(
+                    selectedDate.getDate() - 1
+                );
+                break;
+
+            // Next day
+            case "ArrowRight":
+            case "d":
+            case "D":
+                selectedDate.setDate(
+                    selectedDate.getDate() + 1
+                );
+                break;
+
+            // Next month
+            case "ArrowUp":
+            case "w":
+            case "W":
+                selectedDate.setMonth(
+                    selectedDate.getMonth() - 1
+                );
+                break;
+
+            // Previous month
+            case "ArrowDown":
+            case "s":
+            case "S":
+                selectedDate.setMonth(
+                    selectedDate.getMonth() + 1
+                );
+                break;
+
+            // Previous year
+            case "q":
+            case "Q":
+            case "PageDown":
+                selectedDate.setFullYear(
+                    selectedDate.getFullYear() - 1
+                );
+                break;
+
+            // Next year
+            case "e":
+            case "E":
+            case "PageUp":
+                selectedDate.setFullYear(
+                    selectedDate.getFullYear() + 1
+                );
+                break;
+
+            // Today
+            case "Backspace":
+            case "Enter":
+            case " ":
+            case "Escape":
+                resetToToday();
+                event.preventDefault();
+                return;
+
+            default:
+                return;
+        }
+
+        event.preventDefault();
+        updateDate();
+    }
+);
+
+document.addEventListener(
+    "wheel",
+    event => {
+        event.preventDefault();
+
+        resetInactivityTimer();
+
+        if (
+            Math.abs(event.deltaY) >
+            Math.abs(event.deltaX)
+        ) {
+            if (event.deltaY < 0) {
+                selectedDate.setDate(
+                    selectedDate.getDate() - 1
+                );
+            } else {
+                selectedDate.setDate(
+                    selectedDate.getDate() + 1
+                );
+            }
+        } else if (event.deltaX !== 0) {
+            if (event.deltaX > 0) {
+                selectedDate.setMonth(
+                    selectedDate.getMonth() + 1
+                );
+            } else {
+                selectedDate.setMonth(
+                    selectedDate.getMonth() - 1
+                );
+            }
+        }
+
+        updateDate();
+    },
+    { passive: false }
+);
+
+document.addEventListener(
+    "touchstart",
+    event => {
+        if (event.touches.length !== 1) {
+            return;
+        }
+
+        touchStartX =
+            event.touches[0].clientX;
+
+        touchStartY =
+            event.touches[0].clientY;
+    },
+    { passive: true }
+);
+
+document.addEventListener(
+    "touchend",
+    event => {
+        if (
+            event.changedTouches.length !== 1
+        ) {
+            return;
+        }
+
+        const touchEndX =
+            event.changedTouches[0].clientX;
+
+        const touchEndY =
+            event.changedTouches[0].clientY;
+
+        const deltaX =
+            touchEndX - touchStartX;
+
+        const deltaY =
+            touchEndY - touchStartY;
+
+        const minSwipeDistance = 50;
+
+        // Tap / double tap
+        if (
+            Math.abs(deltaX) <
+            minSwipeDistance &&
+            Math.abs(deltaY) <
+            minSwipeDistance
+        ) {
+            const now = Date.now();
+
+            if (
+                now - lastTapTime < 300
+            ) {
+                resetToToday();
+                lastTapTime = 0;
+            } else {
+                lastTapTime = now;
+                resetInactivityTimer();
+            }
+
+            return;
+        }
+
+        resetInactivityTimer();
+
+        // Horizontal swipe → day
+        if (
+            Math.abs(deltaX) >
+            Math.abs(deltaY)
+        ) {
+            if (deltaX < 0) {
+                // Swipe left → previous day
+                selectedDate.setDate(
+                    selectedDate.getDate() + 1
+                );
+            } else {
+                // Swipe right → next day
+                selectedDate.setDate(
+                    selectedDate.getDate() - 1
+                );
+            }
+        }
+
+        // Vertical swipe → month
+        else {
+            if (deltaY < 0) {
+                // Swipe up → next month
+                selectedDate.setMonth(
+                    selectedDate.getMonth() + 1
+                );
+            } else {
+                // Swipe down → previous month
+                selectedDate.setMonth(
+                    selectedDate.getMonth() - 1
+                );
+            }
+        }
+
+        updateDate();
+        lastTapTime = 0;
+    },
+    { passive: true }
+);
+
+window.addEventListener(
+    "resize",
+    updateFontSize
+);
+
+updateDate();
+resetInactivityTimer();
